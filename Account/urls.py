@@ -1,5 +1,5 @@
 from django.urls import path , include
-from .views import LoginView, LoginView, SignUpView, OtpVerificationsView , LogoutView , ProtectedView
+from .views import LoginView, LoginView, SignUpView, OtpVerificationsView , LogoutView , ProtectedView, SoftDeleteUserAPIView
 from rest_framework.routers import DefaultRouter
 
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -16,5 +16,6 @@ urlpatterns = [
     path('protected/',ProtectedView.as_view(),name="protected-view"),
 
     path('logout/',LogoutView.as_view(),name = "logout"),
+    path('soft-delete/',SoftDeleteUserAPIView.as_view(),name = 'soft-delete')
     
 ]+routers.urls

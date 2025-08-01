@@ -221,3 +221,37 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"message":"Invalid Token or Token Expired", "data": None},status=status.HTTP_400_BAD_REQUEST)
 
+
+
+
+class SoftDeleteUserAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+    def delete(self, request, pk=None):
+        try:
+            
+            username = request.user
+            # default_employer_email = request.data.get('default_employer_email') 
+          
+            user = User.objects.get(username = request.user)
+            # if  user.is_deleted :
+            #     return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
+            # try:
+            #     default_employer = User.objects.get(email=default_employer_email)
+            # except User.DoesNotExist:
+            #     return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            # if not default_employer.is_employer:
+            #     return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            
+            print("deleted user:",username)
+            # print("assigned user:",default_employer)
+
+             
+            # kwargs = {'default_employer': default_employer}
+            
+            user.is_deleted = True
+            user.save()
+            return Response({"message": "User marked as deleted.","username":f"{username}"}, status=status.HTTP_204_NO_CONTENT)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
