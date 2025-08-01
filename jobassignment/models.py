@@ -23,3 +23,5 @@ class Milestone(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     is_completed_by_freelancer = models.BooleanField(default=False)
     is_approved_by_employer = models.BooleanField(default=False)
+
+
