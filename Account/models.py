@@ -45,7 +45,3 @@ class OtpVerification(TimestampModel):
 
 
 
-
-
-
-

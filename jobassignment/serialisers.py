@@ -1,55 +1,118 @@
 from rest_framework import serializers
-from .models import Job, Milestone
+from .models import Job, Milestone , JobApplication
 
 from django.contrib.auth import get_user_model
-
+from Account.models import Skill
+from rest_framework import serializers
+from .models import Job, Milestone, Skill
 
 CustomUser = get_user_model()
 
 class MilestoneSerializer(serializers.ModelSerializer):
-    
+    id = serializers.IntegerField(required=False)
     
     # job = serializers.PrimaryKeyRelatedField(queryset=Job.objects.all())
     class Meta:
         model = Milestone
         fields = ['id', 'title', 'amount', 'is_completed_by_freelancer', 'is_approved_by_employer']
 
+
+
+
+
+
+
+
 class JobSerializer(serializers.ModelSerializer):
     milestones = MilestoneSerializer(many=True)
-    employer = serializers.PrimaryKeyRelatedField( required=False, read_only=True)    
+    employer = serializers.PrimaryKeyRelatedField(required=False, read_only=True)
+    skills = serializers.ListField(child=serializers.CharField(), required=False)
+    # skills = serializers.PrimaryKeyRelatedField(required = False,read_only = True)
 
+    # skills = serializers.StringRelatedField(many=True)    
 
     class Meta:
         model = Job
-        fields = ['id', 'title', 'description','employer', 'freelancer', 'is_archived', 'created_at', 'milestones']
+        fields = ['id', 'title', 'description', 'employer', 'freelancer', 'is_archived', 'created_at', 'milestones', 'skills']
 
-    
     def __init__(self, *args, **kwargs):
-        # Initialize the parent class
         super().__init__(*args, **kwargs)
-
-    
-        
-        # Check if the request method is GET or POST
         request = self.context.get('request', None)
-        
         if request and request.method == 'POST':
-            # If it's a POST request, remove the employer field (not required when creating a job)
-            self.fields.pop('employer')
+            self.fields.pop('employer')  # Remove employer field in POST
+            self.fields.pop('freelancer')  # Remove freelancer field in POST
 
-    
-    
     def create(self, validated_data):
-            
+        milestones_data = validated_data.pop('milestones', [])
+        skills_data = validated_data.pop('skills', [])
+        print("job----",skills_data)
 
-            milestones_data = validated_data.pop('milestones', [])
-            job = Job.objects.create(**validated_data)
+        # Create the Job
+        job = Job.objects.create(**validated_data)
+        print("Job created: ", job)
 
-            # Create the milestones associated with this job
-            for milestone_data in milestones_data:
-                Milestone.objects.create(job=job, **milestone_data)
+      
+        # skills = []
+        # for skill_name in skills_data:
+        #     skill, created = Skill.objects.get_or_create(name=skill_name.lower())  # Ensure skill exists
+        #     skills.append(skill)
 
-            return job
+        
+        # job.skills.set(skills)  # Set the skills on the Job instance
+        # job.save()
+        
+        # print("Skills assigned to job:", job.skills.all()) 
+
+        if skills_data:
+            skills = []
+            for skill_name in skills_data:
+                skill, created = Skill.objects.get_or_create(name=skill_name.lower())
+                skills.append(skill)
+
+            # Associate the skills with the job (Many-to-Many relationship)
+            job.skills.set(skills)
+        
+        # Create Milestones
+        for milestone_data in milestones_data:
+            print("-----")
+            Milestone.objects.create(job=job, **milestone_data)
+        print(job)
+        return job
+
+    def update(self, instance, validated_data):
+        milestones_data = validated_data.pop('milestones', [])
+        skills_data = validated_data.pop('skills', [])
+
+        # Update Job fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update or create milestones
+        for milestone_data in milestones_data:
+            milestone_id = milestone_data.get('id', None)
+            if milestone_id:
+                try:
+                    milestone = Milestone.objects.get(id=milestone_id, job=instance)
+                    for attr, value in milestone_data.items():
+                        setattr(milestone, attr, value)
+                    milestone.save()
+                except Exception:
+                    Milestone.objects.create(job=instance, **milestone_data)
+            else:
+                Milestone.objects.create(job=instance, **milestone_data)
+
+        # Handle Skills
+        skills = []
+        for skill_name in skills_data:
+            skill, created = Skill.objects.get_or_create(name=skill_name.lower())  # Ensure skill exists
+            skills.append(skill)
+
+        # Associate skills with the job
+        instance.skills.set(skills)
+
+        return instance
+
 
 
 # class JobSerializer(serializers.ModelSerializer):
@@ -94,7 +157,7 @@ class EmployerJobCountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['username', 'total_jobs','total_earnings']
+        fields = ['id','username', 'total_jobs','total_earnings']
 
 
 
@@ -105,4 +168,12 @@ class EmployerJobCountSerializer(serializers.ModelSerializer):
 #         model= CustomUser
 #         fields = ['username','total_earnings']
 
-    
+
+
+class JobApplicationsSerilizer(serializers.ModelSerializer):
+
+    class Meta:
+        model =  JobApplication
+        fields = ['id','job','freelancer','cover_letter','is_approved']
+
+

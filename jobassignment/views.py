@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets
-from .models import Job, Milestone
+from .models import Job, Milestone , JobApplication, Skill
 from .serialisers import JobSerializer, MilestoneSerializer 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
@@ -18,6 +18,16 @@ class JobViewSet(viewsets.ModelViewSet):
     serializer_class = JobSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_employer:
+            return Job.objects.filter(employer=user)
+        elif user.is_freelancer:
+            return Job.objects.filter(freelancer__isnull=True)  # Jobs not yet assigned
+        else:
+            return Job.objects.none()
+
+
     def perform_create(self, serializer):
         # Ensure that the logged-in user is the employer
         
@@ -25,7 +35,15 @@ class JobViewSet(viewsets.ModelViewSet):
               return Response({"message":"Only employers can create jobs."},status=status.HTTP_401_UNAUTHORIZED)
         # Assign the employer automatically to the job
         serializer.save(employer=self.request.user)
+        # return Response({"message":"job save successfully.","data":serializer.data},status=status.HTTP_200_OK)
 
+     
+
+    def perform_update(self, serializer):
+        job = self.get_object()
+        if self.request.user != job.employer:
+            raise PermissionDenied("You are not allowed to update this job.")
+        serializer.save(employer = self.request.user)
 
 # class JobViewSet(APIView):
 #     permission_classes = [IsAuthenticated]
@@ -181,23 +199,21 @@ class AverageMileStonePerJobView(APIView):
                 }, status=status.HTTP_204_NO_CONTENT)  
             
             
-            data = {
-                'average_milestone_value': [
-                    {'title': job.title, 'avg_milestone_value': job.avg_milestone_value}
+            data =[
+                    {'id':job.id,'title': job.title, 'avg_milestone_value': job.avg_milestone_value}
                     for job in jobs
                 ]
       
-            }
+            
             
         
        
-            return Response({"message":"Fetch total earning of freelancer successfully.","data":data},status=status.HTTP_200_OK)
+            return Response({"message":"Fetch total earning of freelancer successfully.","average_milestone_value":data},status=status.HTTP_200_OK)
             
             
 
         except Exception as e:
              return Response({"message":"Internal server error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 
 
@@ -222,15 +238,14 @@ class JobWithPendingMilestoneView(APIView):
                     "data": []
                 }, status=status.HTTP_204_NO_CONTENT)  
             
-            data = {
-                'average_milestone_value': [
-                    {'title': job.title, 'pending_milestones': job.pending_milestones}
+            data =  [
+                    {'id':job.id,'title': job.title, 'pending_milestones': job.pending_milestones}
                     for job in jobs_with_pending_milestones
                 ]
       
-            }
+            
        
-            return Response({"message":"Fetch job with pending milestone.","data":data},status=status.HTTP_200_OK)
+            return Response({"message":"Fetch job with pending milestone.","job_with_pending_mile":data},status=status.HTTP_200_OK)
             
             
 
@@ -238,4 +253,25 @@ class JobWithPendingMilestoneView(APIView):
              return Response({"message":"Internal server error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class ApplyForJobView(APIView):
 
+    permission_classes =  [IsAuthenticated]
+
+    def post(self,request,job_id):
+        user = request.user
+        if not  user.is_freelancer :
+            return Response({"message":"Only freelancer are allow to apply for the job."},status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            job = Job.objects.get(id = job_id)
+
+        except Job.DoesNotExist:
+            return Response({"message":"Job you want to access is not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        if JobApplication.objects.filter(job = job, freelancer = user).exists():
+            return Response({"message":"you have already applied ."},status=status.HTTP_400_BAD_REQUEST)
+        
+        JobApplication.objects.create(job =job,freelancer = user, cover_letter = request.data.get('cover_letter'))
+
+        return Response({"message":"Your Job application sumbit Successfully."},status=status.HTTP_200_OK)
+    

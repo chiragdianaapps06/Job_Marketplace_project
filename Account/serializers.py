@@ -131,6 +131,12 @@ class OtpVerificationSerializer(serializers.Serializer, OtpVerificationMixin):
         self.record = record
         print("-------",record)
 
+        is_employer = self.context.get('is_employer')
+        is_freelancer =  self.context.get('is_freelancer')
+
+        if is_employer and is_freelancer :
+            raise serializers.ValidationError("User can't be both employer and freelancer.")
+
         return data
 
     def create(self, validated_data):
@@ -184,4 +190,9 @@ class OtpVerificationSerializer(serializers.Serializer, OtpVerificationMixin):
         return instance
 
    
+class AddSKillToFreelancer(serializers.ModelSerializer):
+
+    class Meta:
+        model  = User
+        fields = ['skills']
     

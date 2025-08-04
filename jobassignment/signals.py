@@ -12,7 +12,7 @@ def check_and_job_archive(sender,instance, **kwargs):
 
     job =instance.job
 
-    if all(Milestone.is_approved_by_employer  and Milestone.is_completed_by_freelancer  for milestone in job.milestones.all()):
+    if all(milestone.is_approved_by_employer  and milestone.is_completed_by_freelancer  for milestone in job.milestones.all()):
 
         job.is_archived = True
         job.save()
