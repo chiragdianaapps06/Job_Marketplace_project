@@ -21,15 +21,11 @@ class MilestoneSerializer(serializers.ModelSerializer):
 
 
 
-
-
 class JobSerializer(serializers.ModelSerializer):
     milestones = MilestoneSerializer(many=True)
     employer = serializers.PrimaryKeyRelatedField(required=False, read_only=True)
-    skills = serializers.ListField(child=serializers.CharField(), required=False)
-    # skills = serializers.PrimaryKeyRelatedField(required = False,read_only = True)
-
-    # skills = serializers.StringRelatedField(many=True)    
+    skills = serializers.PrimaryKeyRelatedField(queryset=Skill.objects.all(), many=True, required=False)
+    # skills = serializers.ListField(child=serializers.CharField(),queryset=Skill.objects.all(), required=False)
 
     class Meta:
         model = Job
@@ -45,111 +41,29 @@ class JobSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         milestones_data = validated_data.pop('milestones', [])
         skills_data = validated_data.pop('skills', [])
-        print("job----",skills_data)
+        print("Skills data:", skills_data)
 
         # Create the Job
         job = Job.objects.create(**validated_data)
-        print("Job created: ", job)
+        print("Job created:", job)
 
-      
-        # skills = []
-        # for skill_name in skills_data:
-        #     skill, created = Skill.objects.get_or_create(name=skill_name.lower())  # Ensure skill exists
-        #     skills.append(skill)
-
-        
-        # job.skills.set(skills)  # Set the skills on the Job instance
-        # job.save()
-        
-        # print("Skills assigned to job:", job.skills.all()) 
-
+        # Handle skills (Many-to-Many relationship)
         if skills_data:
-            skills = []
             for skill_name in skills_data:
-                skill, created = Skill.objects.get_or_create(name=skill_name.lower())
-                skills.append(skill)
+                skill, created = Skill.objects.get_or_create(name=skill_name.lower())  # Find or create skill by name
+                job.skills.add(skill)   # Use the add method to link the skill to the job
 
-            # Associate the skills with the job (Many-to-Many relationship)
-            job.skills.set(skills)
-        
         # Create Milestones
         for milestone_data in milestones_data:
-            print("-----")
             Milestone.objects.create(job=job, **milestone_data)
-        print(job)
+
+        print("Skills assigned to job:", job.skills.all())
         return job
 
-    def update(self, instance, validated_data):
-        milestones_data = validated_data.pop('milestones', [])
-        skills_data = validated_data.pop('skills', [])
-
-        # Update Job fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        # Update or create milestones
-        for milestone_data in milestones_data:
-            milestone_id = milestone_data.get('id', None)
-            if milestone_id:
-                try:
-                    milestone = Milestone.objects.get(id=milestone_id, job=instance)
-                    for attr, value in milestone_data.items():
-                        setattr(milestone, attr, value)
-                    milestone.save()
-                except Exception:
-                    Milestone.objects.create(job=instance, **milestone_data)
-            else:
-                Milestone.objects.create(job=instance, **milestone_data)
-
-        # Handle Skills
-        skills = []
-        for skill_name in skills_data:
-            skill, created = Skill.objects.get_or_create(name=skill_name.lower())  # Ensure skill exists
-            skills.append(skill)
-
-        # Associate skills with the job
-        instance.skills.set(skills)
-
-        return instance
 
 
 
-# class JobSerializer(serializers.ModelSerializer):
-#     milestones = MilestoneSerializer(many=True)  # Nested serializer for milestones
 
-#     class Meta:
-#         model = Job
-#         fields = ['id', 'title', 'description', 'employer', 'freelancer', 'is_archived', 'created_at', 'milestones']
-
-#     def create(self, validated_data):
-#         """
-#         Custom create method to handle milestones when creating a job.
-#         """
-#         # Extract milestones data
-#         milestones_data = validated_data.pop('milestones', [])
-
-#         # Create the Job object
-#         job = Job.objects.create(**validated_data)
-
-#         # Create Milestone objects and associate them with the Job
-#         for milestone_data in milestones_data:
-#             Milestone.objects.create(job=job, **milestone_data)
-
-#         return job
-
-#     def update(self, instance, validated_data):
-#         """
-#         Custom update method if necessary. Here it's just a placeholder.
-#         """
-#         milestones_data = validated_data.pop('milestones', [])
-#         instance = super().update(instance, validated_data)
-
-#         # Update Milestones associated with this Job
-#         for milestone_data in milestones_data:
-#             Milestone.objects.update_or_create(job=instance, **milestone_data)
-
-#         return instance
 
 class EmployerJobCountSerializer(serializers.ModelSerializer):
     total_jobs = serializers.IntegerField(required=False)
@@ -177,3 +91,45 @@ class JobApplicationsSerilizer(serializers.ModelSerializer):
         fields = ['id','job','freelancer','cover_letter','is_approved']
 
 
+class JobSerializer1(serializers.ModelSerializer):
+    milestones = MilestoneSerializer(many=True)
+    employer = serializers.PrimaryKeyRelatedField(required=False, read_only=True)
+    
+    # This field will be used for POST input
+    skills = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
+    
+    # This field will be used for GET output
+    skill_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Job
+        fields = ['id', 'title', 'description', 'employer', 'freelancer', 'is_archived', 'created_at', 'milestones', 'skills','skill_names']
+        
+    def get_skill_names(self, obj):
+        # This is where the ManyRelatedManager is correctly iterated
+        return [skill.id for skill in obj.skills.all()]
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request', None)
+        if request and request.method == 'POST':
+            self.fields.pop('employer')
+            self.fields.pop('freelancer')
+            
+    def create(self, validated_data):
+        milestones_data = validated_data.pop('milestones', [])
+        skills_data = validated_data.pop('skills', [])
+        user = self.context['request'].user
+        
+        job = Job.objects.create(employer=user, **validated_data)
+        # job = Job.objects.create(employer=self.request.user, **validated_data)
+        
+        if skills_data:
+            for skill_name in skills_data:
+                skill, created = Skill.objects.get_or_create(name=skill_name.lower())
+                job.skills.add(skill)
+                
+        for milestone_data in milestones_data:
+            Milestone.objects.create(job=job, **milestone_data)
+            
+        return job

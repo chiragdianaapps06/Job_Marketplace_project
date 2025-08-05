@@ -22,6 +22,11 @@ class Job(models.Model):
         # Ensure you call `.all()` to access related skill objects
         return [skill.name for skill in obj.skills.all()]
 
+
+    # @property
+    # def skill_names(self):
+    #     return [skill.name for skill in self.skills.all()]
+
     
 
 class Milestone(models.Model):

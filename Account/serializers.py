@@ -196,3 +196,10 @@ class AddSKillToFreelancer(serializers.ModelSerializer):
         model  = User
         fields = ['skills']
     
+
+
+
+class CustomUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'is_employer', 'is_freelancer', 'first_name', 'last_name', 'date_joined','skills']

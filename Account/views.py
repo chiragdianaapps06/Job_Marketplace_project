@@ -328,3 +328,16 @@ class AddSkillToUserView(APIView):
         user.save()
 
         return Response({"message": "Skills added to user successfully."}, status=status.HTTP_200_OK)
+
+
+
+# views.py
+from .serializers import CustomUserSerializer
+
+class CustomUserListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        users = User.objects.all()  # Or filter if needed
+        serializer = CustomUserSerializer(users, many=True)
+        return Response(serializer.data)
