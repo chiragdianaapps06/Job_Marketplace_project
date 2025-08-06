@@ -14,7 +14,7 @@ class MilestoneSerializer(serializers.ModelSerializer):
     # job = serializers.PrimaryKeyRelatedField(queryset=Job.objects.all())
     class Meta:
         model = Milestone
-        fields = ['id', 'title', 'amount', 'is_completed_by_freelancer', 'is_approved_by_employer']
+        fields = ['id', 'title', 'amount', 'is_completed_by_freelancer', 'is_approved_by_employer','job']
 
 
 

@@ -221,6 +221,21 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"message":"Invalid Token or Token Expired", "data": None},status=status.HTTP_400_BAD_REQUEST)
 
+from jobassignment.models import Job
+def reassign_jobs_to_default_employer(user, default_employer_email):
+    # Get the default employer object by email
+    try:
+        default_employer =User.objects.get(email=default_employer_email)
+    except User.DoesNotExist:
+        raise ValueError("Default employer not found.")
+    
+    # Reassign all jobs of the user to the default employer
+    if user.is_employer:
+        jobs = Job.objects.filter(employer=user)
+        jobs.update(employer=default_employer)
+        print(f"All jobs of employer {user.username} have been reassigned to {default_employer.username}.")
+    else:
+        raise ValueError("User is not an employer.")
 
 
 
@@ -231,27 +246,32 @@ class SoftDeleteUserAPIView(APIView):
         try:
             
             username = request.user
-            # default_employer_email = request.data.get('default_employer_email') 
+            default_employer_email = request.data.get('default_employer_email') 
           
             user = User.objects.get(username = request.user)
-            # if  user.is_deleted :
-            #     return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
-            # try:
-            #     default_employer = User.objects.get(email=default_employer_email)
-            # except User.DoesNotExist:
-            #     return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
+            if  user.is_deleted :
+                return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
+            try:
+                default_employer = User.objects.get(email=default_employer_email)
+                if default_employer.is_deleted :
+                    return Response({"message":"default user provided is already deleted."},status=status.HTTP_404_NOT_FOUND)
+                if not default_employer.is_employer:
+                    return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            except User.DoesNotExist:
+                return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
             
-            # if not default_employer.is_employer:
-            #     return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            
             
             print("deleted user:",username)
-            # print("assigned user:",default_employer)
+            print("assigned user:",default_employer)
 
              
             # kwargs = {'default_employer': default_employer}
-            
+            user._default_employer = default_employer
             user.is_deleted = True
             user.save()
+
+            # reassign_jobs_to_default_employer(user, default_employer_email=default_employer_email)
             return Response({"message": "User marked as deleted.","username":f"{username}"}, status=status.HTTP_204_NO_CONTENT)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -341,3 +361,43 @@ class CustomUserListView(APIView):
         users = User.objects.all()  # Or filter if needed
         serializer = CustomUserSerializer(users, many=True)
         return Response(serializer.data)
+
+
+
+
+
+class HardDeleteUserAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+    def delete(self, request, pk=None):
+        try:
+            
+            username = request.user
+            default_employer_email = request.data.get('default_employer_email') 
+          
+            user = User.objects.get(username = request.user)
+            if  user.is_deleted :
+                return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
+            try:
+                default_employer = User.objects.get(email=default_employer_email)
+                if default_employer.is_deleted :
+                    return Response({"message":"default user provided is already deleted."},status=status.HTTP_404_NOT_FOUND)
+                if not default_employer.is_employer:
+                    return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            except User.DoesNotExist:
+                return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            
+            
+            print("deleted user:",username)
+            print("assigned user:",default_employer)
+
+             
+            # kwargs = {'default_employer': default_employer}
+            user._default_employer = default_employer
+            user.delete()
+
+            # reassign_jobs_to_default_employer(user, default_employer_email=default_employer_email)
+            return Response({"message": "User marked as deleted.","username":f"{username}"}, status=status.HTTP_204_NO_CONTENT)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)

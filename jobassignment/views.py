@@ -18,6 +18,10 @@ from rest_framework.decorators import permission_classes, api_view
 from django.http import StreamingHttpResponse
 import csv
 
+#impoting library for row sql 
+from django.db import connection
+from datetime import datetime
+
 # import logger
 from .logger import get_logger
 logger = get_logger("job-task-logger")
@@ -35,6 +39,8 @@ class JobViewSet(viewsets.ModelViewSet):
             return Job.objects.filter(freelancer__isnull=True)  # Jobs not yet assigned
         else:
             return Job.objects.none()
+
+
 
     def perform_create(self, serializer):
         # Ensure that the logged-in user is the employer
@@ -219,6 +225,7 @@ class JobListApiView(APIView):
         user = request.user
         
         # Filter jobs based on the user role
+        
         if user.is_employer:
             jobs = Job.objects.filter(employer=user)
         elif user.is_freelancer:
@@ -230,9 +237,10 @@ class JobListApiView(APIView):
         serializer = JobSerializer(jobs, many=True)
 
         # Return serialized data in the response
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({"message":f"Fetch all job data for {user} successfully.","data":serializer.data}, status=status.HTTP_200_OK)
 
 
+from django.contrib.postgres.search import TrigramSimilarity
 
 
 
@@ -240,6 +248,32 @@ class MilestoneViewSet(viewsets.ModelViewSet):
     queryset = Milestone.objects.all()
     serializer_class = MilestoneSerializer
     permission_classes = [IsAuthenticated]
+
+    def list(self, request,job_id = None):
+        """
+        Custom list view
+        """
+        # You can modify the queryset or apply extra filtering here
+       
+     
+
+        if job_id:
+            queryset = self.get_queryset().filter(job_id=job_id)
+        else:
+             queryset = self.get_queryset()
+
+        search_query = request.query_params.get('search', None)
+
+        if search_query:
+            queryset = queryset.annotate(
+                similarity=TrigramSimilarity('title', search_query)
+            ).filter(similarity__gt=0.3)
+
+        # Serialize the queryset
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Return the serialized data in the response
+        return Response({"message":"fetch milestone successfully.","milestone":serializer.data},status=status.HTTP_200_OK)
 
     
     @action(detail=True, methods=['post'], url_path='complete')
@@ -345,18 +379,23 @@ class TotalEarningPerFreelancerView(APIView):
 
 class AverageMileStonePerJobView(APIView):
 
+    permission_classes =  [IsAuthenticated]
+
     def get(self,request,*args, **kwargs):
         try:
 
             #finding Averaage milestone per job
-
+            start_time = datetime.now()
             jobs = Job.objects.annotate(
                 avg_milestone_value = Subquery(
                     Milestone.objects.filter(
                          job=OuterRef('pk')
                     ).values('job').annotate(average=Avg('amount')).values('average')[:1]
                 )
-            )
+            ) 
+            end_time =  datetime.now()
+            duration =  end_time - start_time
+            print(f"Execution time: {duration.total_seconds()} seconds")
 
             if not jobs.exists():
                 return Response({
@@ -376,7 +415,9 @@ class AverageMileStonePerJobView(APIView):
        
             return Response({"message":"Fetch total earning of freelancer successfully.","average_milestone_value":data},status=status.HTTP_200_OK)
             
-            
+            # data = Job.custom_objects.archived()
+            data = Job.objects.all()
+            return Response({"message":"data fetch","data" : data.count()})
 
         except Exception as e:
              return Response({"message":"Internal server error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -577,3 +618,48 @@ class BulkCompletedMilestoneApi(APIView):
                     {"error": str(e)},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+
+
+class AverageMilestoneValuePerJobApiView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self,request):
+        
+        try:
+
+            with connection.cursor() as cursor:
+                start_time = datetime.now()
+                cursor.execute('''
+                    SELECT j.id as job_id,
+                            j.title as job_title,
+                            AVG(m.amount) as avg_milestone_amount
+                            FROM jobassignment_job j
+                            LEFT JOIN jobassignment_milestone m  ON m.job_id = j.id
+                            GROUP BY j.id, j.title  
+                ''')
+                rows = cursor.fetchall() 
+                end_time = datetime.now()
+                duration = end_time- start_time
+                print(f"Execution time: {duration.total_seconds()} seconds")
+                print("====",rows)
+
+                if not rows:
+                    return Response({"message":"No Milestone data available","data":[]},status=status.HTTP_204_NO_CONTENT)
+                
+                data = [
+                    {'id': row[0], 'title': row[1], 'avg_milestone_value': row[2]}
+                    for row in rows
+                ]
+                print("-----",data)
+
+                return Response({"message":"fetch the milesstone data successfully.","data":data},status=status.HTTP_200_OK)
+            
+        except Exception as e:
+                return Response(
+                    {"error": str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+
+
+
