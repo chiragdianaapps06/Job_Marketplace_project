@@ -7,7 +7,7 @@ from rest_framework import viewsets
 from .serializers import SignUpSerializer ,OtpVerificationSerializer
 
 from rest_framework.views import APIView
-from .models import OtpVerification
+from .models import OtpVerification , Skill
 from django.contrib.auth import get_user_model
 
 from django.contrib.auth import authenticate
@@ -221,3 +221,123 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"message":"Invalid Token or Token Expired", "data": None},status=status.HTTP_400_BAD_REQUEST)
 
+
+
+
+class SoftDeleteUserAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+    def delete(self, request, pk=None):
+        try:
+            
+            username = request.user
+            # default_employer_email = request.data.get('default_employer_email') 
+          
+            user = User.objects.get(username = request.user)
+            # if  user.is_deleted :
+            #     return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
+            # try:
+            #     default_employer = User.objects.get(email=default_employer_email)
+            # except User.DoesNotExist:
+            #     return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            # if not default_employer.is_employer:
+            #     return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            
+            print("deleted user:",username)
+            # print("assigned user:",default_employer)
+
+             
+            # kwargs = {'default_employer': default_employer}
+            
+            user.is_deleted = True
+            user.save()
+            return Response({"message": "User marked as deleted.","username":f"{username}"}, status=status.HTTP_204_NO_CONTENT)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+
+
+
+# class AddSkillToUserView(APIView):
+
+    # permission_classes  = [IsAuthenticated]
+
+    # def post(self,request,*args, **kwargs):
+    #     user = request.user
+    #     skills_data = request.data.get('skills',[])
+    #     # try:
+    #     #     user = User.objects.get(id= user)
+    #     # except User.DoesNotExist:
+    #     #     return Response({"user not exist."})
+    #     print(skills_data)
+    #     if not skills_data:
+    #         return Response({"message":"pass the required skill you want to add."},status=status.HTTP_400_BAD_REQUEST)
+
+    #     if not user.is_freelancer:
+    #         return Response({"message":"only freelancer is allow to add skill."}, status=status.HTTP_400_BAD_REQUEST)
+      
+    #     if not all(isinstance(skill, str) for skill in skills_data):
+    #         return Response({"error": "Skills must be provided as an array of skill names (strings)."}, status=status.HTTP_400_BAD_REQUEST)
+    #     skills = []
+    #     for skill in skills_data:
+    #         skill_object = Skill.objects.get_or_create(name= skill.lower())
+    #         skills.append(skill_object)
+    #     print(skills)
+        
+
+    #     user.skills.set(skills)
+    #     user.save()
+
+    #     return Response({"message":"Skills add to user successfully"},status=status.HTTP_200_OK)
+class AddSkillToUserView(APIView):
+    permission_classes  = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        skills_data = request.data.get('skills', [])  # ["java", "python"]
+
+
+        if request.content_type == 'application/json':
+            skills_data = request.data.get('skills', [])
+        else:
+            skills_data = request.data.getlist('skills[]', [])
+
+        if user.is_deleted :
+            return Response({"message":"login user is deleted."})
+
+
+        # Validate skills data
+        if not skills_data:
+            return Response({"message": "Pass the required skill you want to add."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.is_freelancer:
+            return Response({"message": "Only freelancer is allowed to add skill."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not all(isinstance(skill, str) for skill in skills_data):
+            return Response({"error": "Skills must be provided as an array of skill names (strings)."}, status=status.HTTP_400_BAD_REQUEST)
+        print("===",skills_data)
+        skills = []
+        for skill in skills_data:
+            skill_object, created = Skill.objects.get_or_create(name=skill.lower())  # Get or create the skill object
+            skills.append(skill_object)  # Append the actual Skill object (not the string)
+
+        print("skills",skills)
+        # Now assign the skills to the user
+        user.skills.set(skills)
+        user.save()
+
+        return Response({"message": "Skills added to user successfully."}, status=status.HTTP_200_OK)
+
+
+
+# views.py
+from .serializers import CustomUserSerializer
+
+class CustomUserListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        users = User.objects.all()  # Or filter if needed
+        serializer = CustomUserSerializer(users, many=True)
+        return Response(serializer.data)

@@ -10,10 +10,20 @@ class TimestampModel(models.Model):
     class Meta:
         abstract = True
 
+
+
+class Skill(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
 class CustomUser(AbstractUser,TimestampModel):
     email = models.EmailField(unique=True)
     is_employer = models.BooleanField(default=False)
     is_freelancer = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    skills = models.ManyToManyField(Skill, related_name='freelancers', blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
@@ -32,10 +42,6 @@ class OtpVerification(TimestampModel):
 
     def is_expired(self):
         return timezone.now() > self.updatedAt + timezone.timedelta(minutes=5)
-
-
-
-
 
 
 
