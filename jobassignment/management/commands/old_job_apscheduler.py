@@ -20,12 +20,12 @@ def archive_old_jobs():
             job.is_archived = True
             job.save()
             # self.stdout.write(self.style.SUCCESS(f'Job {job.id} archived.'))
-            print(f'Job {job.id} archived.')
+            logger.info(f'Job {job.id} archived.')
         else:
             # self.stdout.write(self.style.NOTICE(f'Job {job.id} not archived due to incomplete or unapproved milestones.'))
-            print(f'Job {job.id} not archived due to incomplete or unapproved milestones.')
+            logger.info(f'Job {job.id} not archived due to incomplete or unapproved milestones.')
 
-    print("Archives old jobs where all milestones are completed and approved.")
+    logger.info("Archives old jobs where all milestones are completed and approved.")
 
     
 
@@ -35,7 +35,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         scheduler = BlockingScheduler(timezone=settings.TIME_ZONE)
         scheduler.add_jobstore(DjangoJobStore(), "default")
-        print("===")
+        logger.info("===")
         scheduler.add_job(
             archive_old_jobs,
             # trigger=CronTrigger(hour=0, minute=0),  # runs daily at midnight
@@ -49,7 +49,7 @@ class Command(BaseCommand):
         try:
             logger.info("Starting scheduler...")
             scheduler.start()
-            print("===")
+            logger.info("===")
 
         except KeyboardInterrupt:
             logger.info("Stopping scheduler...")

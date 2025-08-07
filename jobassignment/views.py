@@ -24,7 +24,7 @@ from datetime import datetime
 
 # import logger
 from .logger import get_logger
-logger = get_logger("job-task-logger")
+logger = get_logger("job-views-logger")
 
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
@@ -91,9 +91,9 @@ class JobViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='approve-application')
     def approve_application(self, request, pk=None):
         job = self.get_object()
-        print("===",job)
+        logger.info("job for which you approving application:",job)
         freelancer_id = request.data.get('freelancer_id')
-        print("===",freelancer_id)
+        logger.info("freelacer that you approving for the current job:",freelancer_id)
         if not freelancer_id:
 
             return Response({"error":"freelancer is not passed."},status=status.HTTP_400_BAD_REQUEST)
@@ -279,8 +279,8 @@ class MilestoneViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
         milestone = self.get_object()
-        print("===",request.user)        
-        print("===",milestone.job.freelancer)   
+        logger.info("login user:",request.user)        
+        logger.info("current job freelancer:",milestone.job.freelancer)   
 
         if not request.user.is_freelancer:
             return Response({"message":"you are not freelancer"},status=status.HTTP_401_UNAUTHORIZED)
@@ -298,9 +298,9 @@ class MilestoneViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         milestone = self.get_object()
-        print("===",request.user)        
-        print("===",milestone.job.employer)        
-        print("===",milestone.job.freelancer)        
+        logger.info("login user:",request.user)        
+        logger.info("current job employer:",milestone.job.employer)        
+        logger.info("current job freelancer:",milestone.job.freelancer)        
 
         # Check if the user is the employer of the job
         if milestone.job.employer == request.user:
@@ -331,7 +331,7 @@ class TotalJobPerEmployerView(APIView):
                 }, status=status.HTTP_204_NO_CONTENT)  
 
             for employer in employers:
-                print(employer.username, employer.total_jobs)
+                logger.info(employer.username, employer.total_jobs)
 
             serializer = EmployerJobCountSerializer(employers, many=True)
 
@@ -395,7 +395,7 @@ class AverageMileStonePerJobView(APIView):
             ) 
             end_time =  datetime.now()
             duration =  end_time - start_time
-            print(f"Execution time: {duration.total_seconds()} seconds")
+            logger.info(f"Execution time: {duration.total_seconds()} seconds")
 
             if not jobs.exists():
                 return Response({
@@ -561,7 +561,7 @@ def export_large_user_csv(request):
             i=0
             yield ['title','description','employer','freelancer','skills']  # headers
             for row in rows:
-                print("=====",i)
+                logger.info("data pass till row : ",i)
                 i+=1
                 yield row
             logger.info("Finished generating CSV rows.")
@@ -590,10 +590,10 @@ class BulkCompletedMilestoneApi(APIView):
 
     def post(self,request):
         try:
-            print("Request Data: %s", request.data)
+            logger.info("Request Data: %s", request.data)
             milestone_ids = request.data.get("milestone_ids",[])
 
-            print("----",milestone_ids)
+            logger.info("all milestone id  pass for bulk update : ",milestone_ids)
 
             # check milestone list is emplty or not
             if not milestone_ids:
@@ -640,8 +640,8 @@ class AverageMilestoneValuePerJobApiView(APIView):
                 rows = cursor.fetchall() 
                 end_time = datetime.now()
                 duration = end_time- start_time
-                print(f"Execution time: {duration.total_seconds()} seconds")
-                print("====",rows)
+                logger.info(f"Execution time: {duration.total_seconds()} seconds")
+                logger.info("all fetch rows from db:",rows)
 
                 if not rows:
                     return Response({"message":"No Milestone data available","data":[]},status=status.HTTP_204_NO_CONTENT)
@@ -650,7 +650,7 @@ class AverageMilestoneValuePerJobApiView(APIView):
                     {'id': row[0], 'title': row[1], 'avg_milestone_value': row[2]}
                     for row in rows
                 ]
-                print("-----",data)
+                logger.info("Required average milestone value per job are:",data)
 
                 return Response({"message":"fetch the milesstone data successfully.","data":data},status=status.HTTP_200_OK)
             

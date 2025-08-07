@@ -10,13 +10,16 @@
 
 #             job.is_archived = True
 #             job.save()
-#             print(f"Job {job.id} has been archived.")
+#             logger.info(f"Job {job.id} has been archived.")
 
 
 from django.core.management.base import BaseCommand
 from datetime import timedelta
 from django.utils import timezone
 from jobassignment.models import Job
+from jobassignment.logger import get_logger
+
+logger = get_logger('archive_job logger')
 
 class Command(BaseCommand):
     help = 'Archives old jobs where all milestones are completed and approved.'
@@ -30,9 +33,9 @@ class Command(BaseCommand):
                 job.is_archived = True
                 job.save()
                 # self.stdout.write(self.style.SUCCESS(f'Job {job.id} archived.'))
-                print(f'Job {job.id} archived.')
+                logger.info(f'Job {job.id} archived.')
             else:
                 # self.stdout.write(self.style.NOTICE(f'Job {job.id} not archived due to incomplete or unapproved milestones.'))
-                print(f'Job {job.id} not archived due to incomplete or unapproved milestones.')
+                logger.info(f'Job {job.id} not archived due to incomplete or unapproved milestones.')
 
-        print("Archives old jobs where all milestones are completed and approved.")
+        logger.info("Archives old jobs where all milestones are completed and approved.")
