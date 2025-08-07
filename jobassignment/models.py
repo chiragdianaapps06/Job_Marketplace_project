@@ -1,9 +1,28 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from Account.models import Skill
+from django.contrib.postgres.indexes import GinIndex
+# from django.contrib.postgres.fields import TrigramField 
 
 CustomUser = get_user_model()
-# Create your models here.
+# Create your models here.(
+
+class JobManager(models.Manager):
+
+    def archived(self):
+        return self.filter(is_archived = True)
+    
+    def check_archived(self):
+        return self.milestones.filter(
+            is_completed_by_freelancer = True,
+            is_approved_by_employer  = True
+        )
+    
+
+# class MilestoneManager(models.Manager):
+
+#     def archive
+
 
 class Job(models.Model):
     title = models.CharField(max_length=255)
@@ -13,6 +32,13 @@ class Job(models.Model):
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     skills = models.ManyToManyField(Skill, related_name='jobs', blank=True)
+
+    # Default manager to prevernt from override
+    objects = models.Manager()
+
+    # custom manager
+    custom_objects =  JobManager()
+
 
 
     def __str__(self):
@@ -37,6 +63,26 @@ class Milestone(models.Model):
     is_approved_by_employer = models.BooleanField(default=False)
 
 
+    indexes = [
+            GinIndex(fields=['title'], name='milestone_title_gin_idx', opclasses=['gin_trgm_ops']),  # Specify operator class
+        ]
+    
+
+    # Default manager to prevernt from override
+    objects = models.Manager()
+
+    # custom manager
+    custom_objects =  JobManager()
+    
+    def __str__(self):
+        return self.title
+
+# class JobApplicationManager(models.Manager):
+
+#     def active(self):
+#         return self.freelacer and self.is_approved
+    
+    
 class JobApplication(models.Model):
     job =  models.ForeignKey(Job,on_delete=models.CASCADE, related_name='applications')
     freelancer = models.ForeignKey(CustomUser,on_delete=models.CASCADE, limit_choices_to={'is_freelancer': True})

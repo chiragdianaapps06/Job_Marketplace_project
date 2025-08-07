@@ -14,10 +14,12 @@ import random
 from django.core.mail import send_mail
 from rest_framework.views import APIView
 
-
-
-
 from rest_framework import serializers
+
+# importing logger
+from jobassignment.logger import get_logger
+
+logger = get_logger('Account-serializers-logger')\
 
 class OtpVerificationMixin:
 
@@ -52,7 +54,7 @@ class OtpVerificationMixin:
             recipient_list=[email],
             fail_silently=False,
         )
-        print(f"opt send to {email} , otp is {otp}")
+        logger.info(f"opt send to {email} , otp is {otp}")
 
         return otp
 
@@ -129,7 +131,7 @@ class OtpVerificationSerializer(serializers.Serializer, OtpVerificationMixin):
         '''
         record = self.verify_otp(data['email'], data['otp'])
         self.record = record
-        print("-------",record)
+        logger.info("data found  in otp verification:",record)
 
         is_employer = self.context.get('is_employer')
         is_freelancer =  self.context.get('is_freelancer')
@@ -156,7 +158,7 @@ class OtpVerificationSerializer(serializers.Serializer, OtpVerificationMixin):
             email=record.email,
             defaults={'username': record.username}
         )
-        print("-----------")
+       
         if password:
             user.set_password(password)
         if is_employer:

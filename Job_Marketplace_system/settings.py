@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'Account',
     'rest_framework_simplejwt.token_blacklist',
-    'jobassignment'
+    'jobassignment',
+    'django_apscheduler',
 ]
 
 

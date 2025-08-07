@@ -25,6 +25,10 @@ from rest_framework.pagination import PageNumberPagination
 
 User = get_user_model()
 
+# imporing logger
+from jobassignment.logger import get_logger
+logger = get_logger("Account-view-logger")
+
 
 
 
@@ -54,7 +58,7 @@ class SignUpView(viewsets.ModelViewSet):
         
         except User.DoesNotExist: 
             serializer = self.get_serializer(data=request.data)
-            print("----",serializer)
+            logger.info("current  used serializer : ",serializer)
 
             if serializer.is_valid():
 
@@ -90,14 +94,14 @@ class SignUpView(viewsets.ModelViewSet):
 #     def post(self, request):
 #         password = request.session.get('password')
 #         serializer = OtpVerificationSerializer(data=request.data, context={'password': password})
-#         print("========", serializer)
+#         logger.info("========", serializer)
         
 
 #         try:
 
 #             if serializer.is_valid():
-#                 # print("=====",serializer.save())
-#                 print("========", serializer)
+#                 # logger.info("=====",serializer.save())
+#                 logger.info("========", serializer)
         
 
 #                 serializer.save()
@@ -164,20 +168,20 @@ class LoginView(APIView):
         try:
             # user = User.objects.get(email=email)
             user = User.objects.get(email=email)
-            print(user)
+            logger.info(f"{user} authentication proccess started.")
         except User.DoesNotExist:
             return Response({'message': 'User does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
         user = authenticate(email=email, password=password)
-        print(user)
+        logger.info("{user} login successfully.")
 
         if user is None:
             return Response({'message': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
-        print(user.email)
+        logger.info(f"{user.email} login user email")
 
         refresh = RefreshToken.for_user(user)
-        print(refresh)
-        print(refresh.access_token)
+        # logger.info(refresh)
+        # logger.info(refresh.access_token)
         return Response({
             'message': 'User logged in successfully.',
             'refresh_token': str(refresh),
@@ -221,6 +225,21 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"message":"Invalid Token or Token Expired", "data": None},status=status.HTTP_400_BAD_REQUEST)
 
+from jobassignment.models import Job
+def reassign_jobs_to_default_employer(user, default_employer_email):
+    # Get the default employer object by email
+    try:
+        default_employer =User.objects.get(email=default_employer_email)
+    except User.DoesNotExist:
+        raise ValueError("Default employer not found.")
+    
+    # Reassign all jobs of the user to the default employer
+    if user.is_employer:
+        jobs = Job.objects.filter(employer=user)
+        jobs.update(employer=default_employer)
+        logger.info(f"All jobs of employer {user.username} have been reassigned to {default_employer.username}.")
+    else:
+        raise ValueError("User is not an employer.")
 
 
 
@@ -231,27 +250,32 @@ class SoftDeleteUserAPIView(APIView):
         try:
             
             username = request.user
-            # default_employer_email = request.data.get('default_employer_email') 
+            default_employer_email = request.data.get('default_employer_email') 
           
             user = User.objects.get(username = request.user)
-            # if  user.is_deleted :
-            #     return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
-            # try:
-            #     default_employer = User.objects.get(email=default_employer_email)
-            # except User.DoesNotExist:
-            #     return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
+            if  user.is_deleted :
+                return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
+            try:
+                default_employer = User.objects.get(email=default_employer_email)
+                if default_employer.is_deleted :
+                    return Response({"message":"default user provided is already deleted."},status=status.HTTP_404_NOT_FOUND)
+                if not default_employer.is_employer:
+                    return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            except User.DoesNotExist:
+                return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
             
-            # if not default_employer.is_employer:
-            #     return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
             
-            print("deleted user:",username)
-            # print("assigned user:",default_employer)
+            
+            logger.info("deleted user:",username)
+            logger.info("assigned user:",default_employer)
 
              
             # kwargs = {'default_employer': default_employer}
-            
+            user._default_employer = default_employer
             user.is_deleted = True
             user.save()
+
+            # reassign_jobs_to_default_employer(user, default_employer_email=default_employer_email)
             return Response({"message": "User marked as deleted.","username":f"{username}"}, status=status.HTTP_204_NO_CONTENT)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -270,7 +294,7 @@ class SoftDeleteUserAPIView(APIView):
     #     #     user = User.objects.get(id= user)
     #     # except User.DoesNotExist:
     #     #     return Response({"user not exist."})
-    #     print(skills_data)
+    #     logger.info(skills_data)
     #     if not skills_data:
     #         return Response({"message":"pass the required skill you want to add."},status=status.HTTP_400_BAD_REQUEST)
 
@@ -283,7 +307,7 @@ class SoftDeleteUserAPIView(APIView):
     #     for skill in skills_data:
     #         skill_object = Skill.objects.get_or_create(name= skill.lower())
     #         skills.append(skill_object)
-    #     print(skills)
+    #     logger.info(skills)
         
 
     #     user.skills.set(skills)
@@ -316,13 +340,13 @@ class AddSkillToUserView(APIView):
 
         if not all(isinstance(skill, str) for skill in skills_data):
             return Response({"error": "Skills must be provided as an array of skill names (strings)."}, status=status.HTTP_400_BAD_REQUEST)
-        print("===",skills_data)
+        logger.info("skill data you have pass:",skills_data)
         skills = []
         for skill in skills_data:
             skill_object, created = Skill.objects.get_or_create(name=skill.lower())  # Get or create the skill object
             skills.append(skill_object)  # Append the actual Skill object (not the string)
 
-        print("skills",skills)
+        logger.info("Required skill that is seting to user:",skills)
         # Now assign the skills to the user
         user.skills.set(skills)
         user.save()
@@ -341,3 +365,43 @@ class CustomUserListView(APIView):
         users = User.objects.all()  # Or filter if needed
         serializer = CustomUserSerializer(users, many=True)
         return Response(serializer.data)
+
+
+
+
+
+class HardDeleteUserAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+    def delete(self, request, pk=None):
+        try:
+            
+            username = request.user
+            default_employer_email = request.data.get('default_employer_email') 
+          
+            user = User.objects.get(username = request.user)
+            if  user.is_deleted :
+                return Response({"message":"User is already soft deleted."},status=status.HTTP_204_NO_CONTENT)
+            try:
+                default_employer = User.objects.get(email=default_employer_email)
+                if default_employer.is_deleted :
+                    return Response({"message":"default user provided is already deleted."},status=status.HTTP_404_NOT_FOUND)
+                if not default_employer.is_employer:
+                    return Response({"message": "pass user is not employer"}, status=status.HTTP_204_NO_CONTENT)
+            except User.DoesNotExist:
+                return Response({"error": "other user not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            
+            
+            logger.info("deleted user:",username)
+            logger.info("assigned user:",default_employer)
+
+             
+            # kwargs = {'default_employer': default_employer}
+            user._default_employer = default_employer
+            user.delete()
+
+            # reassign_jobs_to_default_employer(user, default_employer_email=default_employer_email)
+            return Response({"message": "User marked as deleted.","username":f"{username}"}, status=status.HTTP_204_NO_CONTENT)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)

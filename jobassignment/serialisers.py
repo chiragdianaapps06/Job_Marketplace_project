@@ -7,6 +7,8 @@ from rest_framework import serializers
 from .models import Job, Milestone, Skill
 
 CustomUser = get_user_model()
+from jobassignment.logger import get_logger
+logger = get_logger('jobasssignment-serilizers')
 
 class MilestoneSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
@@ -14,7 +16,7 @@ class MilestoneSerializer(serializers.ModelSerializer):
     # job = serializers.PrimaryKeyRelatedField(queryset=Job.objects.all())
     class Meta:
         model = Milestone
-        fields = ['id', 'title', 'amount', 'is_completed_by_freelancer', 'is_approved_by_employer']
+        fields = ['id', 'title', 'amount', 'is_completed_by_freelancer', 'is_approved_by_employer','job']
 
 
 
@@ -41,11 +43,11 @@ class JobSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         milestones_data = validated_data.pop('milestones', [])
         skills_data = validated_data.pop('skills', [])
-        print("Skills data:", skills_data)
+        logger.info("Skills data:", skills_data)
 
         # Create the Job
         job = Job.objects.create(**validated_data)
-        print("Job created:", job)
+        logger.info("Job created:", job)
 
         # Handle skills (Many-to-Many relationship)
         if skills_data:
@@ -57,7 +59,7 @@ class JobSerializer(serializers.ModelSerializer):
         for milestone_data in milestones_data:
             Milestone.objects.create(job=job, **milestone_data)
 
-        print("Skills assigned to job:", job.skills.all())
+        logger.info("Skills assigned to job:", job.skills.all())
         return job
 
 
